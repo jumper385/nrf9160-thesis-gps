@@ -19,8 +19,8 @@
 #include "payload.h"
 #include <zephyr/drivers/gpio.h>
 
-#define LED_PORT DT_LABEL(DT_NODELABEL(led0))
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
+static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button2), gpios);
 
 LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 
@@ -43,13 +43,19 @@ static void report_timer_handler(struct k_timer *timer) {
 
 K_TIMER_DEFINE(report_timer, report_timer_handler, NULL);
 
+static struct gpio_callback btn_cb_data;
+
 /* One reporting cycle: get a fix and POST it. */
 static void report_cycle(void) {
 
   int err;
   struct nrf_modem_gnss_pvt_data_frame fix;
 
-  gpio_pin_set_dt(&led, 1);
+  bool led_inhibit = gpio_pin_get_dt(&btn);
+
+  if (!led_inhibit) {
+    gpio_pin_set_dt(&led, 1);
+  }
 
   err = gnss_get_fix(&fix);
   if (err) {
@@ -79,11 +85,19 @@ static void report_cycle(void) {
   if (err) {
     LOG_ERR("CoAP send failed: %d", err);
   }
-  gpio_pin_set_dt(&led, 0);
+  if (!led_inhibit) {
+    gpio_pin_set_dt(&led, 0);
+  }
 }
 
 int main(void) {
   int err;
+
+  if (!device_is_ready(btn.port)) {
+    LOG_ERR("Button device not ready");
+    return -1;
+  }
+  gpio_pin_configure_dt(&btn, GPIO_INPUT);
 
   if (!device_is_ready(led.port)) {
     LOG_ERR("LED device not ready");
@@ -101,6 +115,7 @@ int main(void) {
 
   err = gnss_init();
   if (err) {
+    LOG_ERR("GNSS init failed: %d", err);
     return err;
   }
 
