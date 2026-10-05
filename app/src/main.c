@@ -17,6 +17,10 @@
 #include "coap_client.h"
 #include "gnss.h"
 #include "payload.h"
+#include <zephyr/drivers/gpio.h>
+
+#define LED_PORT DT_LABEL(DT_NODELABEL(led0))
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
 
 LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 
@@ -41,8 +45,11 @@ K_TIMER_DEFINE(report_timer, report_timer_handler, NULL);
 
 /* One reporting cycle: get a fix and POST it. */
 static void report_cycle(void) {
+
   int err;
   struct nrf_modem_gnss_pvt_data_frame fix;
+
+  gpio_pin_set_dt(&led, 1);
 
   err = gnss_get_fix(&fix);
   if (err) {
@@ -72,10 +79,17 @@ static void report_cycle(void) {
   if (err) {
     LOG_ERR("CoAP send failed: %d", err);
   }
+  gpio_pin_set_dt(&led, 0);
 }
 
 int main(void) {
   int err;
+
+  if (!device_is_ready(led.port)) {
+    LOG_ERR("LED device not ready");
+    return -1;
+  }
+  gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
 
   LOG_INF("GNSS -> CoAP app starting");
 
