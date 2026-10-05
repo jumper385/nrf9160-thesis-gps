@@ -9,7 +9,12 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(app LANGUAGES C)
 
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE
+  src/main.c
+  src/gnss.c
+  src/payload.c
+  src/coap_client.c
+)
 
 # The code below locates the git index file for this repository and adds it as a dependency for
 # the application VERSION file so that if the repo has a new commit added, even if no files in
